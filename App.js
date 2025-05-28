@@ -27,7 +27,6 @@ export default function App() {
   const [userAge, setUserAge] = useState("");
   const [userStride, setUserStride] = useState("");
   const [savedRecords, setSavedRecords] = useState([]);
-
   const isTrackingRef = useRef(false);
   const currentStepCount = useRef(0);
   const accelerometerSubscription = useRef(null);
@@ -36,7 +35,7 @@ export default function App() {
   const isPeak = useRef(false);
 
   const stepThreshold = 1.2;
-  const stepInterval = 400;
+  const stepInterval = 300;
 
   useEffect(() => {
     const init = async () => {
@@ -58,6 +57,7 @@ export default function App() {
       Alert.alert("설정 필요", "성별, 나이, 보폭을 모두 설정해주세요.");
       return;
     }
+
     isTrackingRef.current = true;
     setIsTracking(true);
     setDebugInfo("▶ 측정 시작됨");
@@ -66,7 +66,6 @@ export default function App() {
     accelerometerSubscription.current = Accelerometer.addListener((data) => {
       const { x, y, z } = data;
       const acceleration = Math.sqrt(x * x + y * y + z * z);
-      setAccelerometerData(data);
 
       const now = Date.now();
 
@@ -77,8 +76,8 @@ export default function App() {
         now - lastStepTime.current > stepInterval
       ) {
         isPeak.current = true;
+        handleStep(x, y, z, now - lastStepTime.current);
         lastStepTime.current = now;
-        handleStep();
       }
 
       if (acceleration < stepThreshold && isPeak.current) {
@@ -100,7 +99,7 @@ export default function App() {
     }
   };
 
-  const handleStep = () => {
+  const handleStep = (x, y, z, timeDiff) => {
     if (!isTrackingRef.current) return;
 
     currentStepCount.current += 1;
@@ -109,6 +108,12 @@ export default function App() {
     const stride = parseFloat(userStride) || 0.7;
     setTotalDistance(currentStepCount.current * stride);
     setDebugInfo(`🚶 감지됨: ${currentStepCount.current}걸음`);
+
+    console.log(
+      `🚶 걸음 감지! x: ${x.toFixed(2)}, y: ${y.toFixed(2)}, z: ${z.toFixed(
+        2
+      )}, Δt: ${(timeDiff / 1000).toFixed(2)}s`
+    );
   };
 
   const saveRecord = () => {
