@@ -33,6 +33,7 @@ export default function App() {
   const [savedRecords, setSavedRecords] = useState([]);
   const [currentTime, setCurrentTime] = useState("00:00");
   const [currentSpeed, setCurrentSpeed] = useState(0);
+  const [heartRate, setHeartRate] = useState(0);
 
   const isTrackingRef = useRef(false);
   const currentStepCount = useRef(0);
@@ -42,9 +43,36 @@ export default function App() {
   const isPeak = useRef(false);
   const startTime = useRef(null);
   const timeInterval = useRef(null);
+  const heartRateInterval = useRef(null);
 
+  // 임계값을 계산합니다 현재 1.2 이상으로 되어 있으니 가속도를 계산하였을떄 1.2 이상으로 올라야 1걸음이 증가합니다
   const stepThreshold = 1.2;
-  const stepInterval = 300;
+
+  // 사람의 걸음으로 했을떄 0.3초 이후 다시 계산 될 수 있는 타이머입니다.
+  const stepInterval = 400;
+
+  // 심박수 시뮬레이션 (실제 앱에서는 센서 데이터 사용)
+  useEffect(() => {
+    if (isTracking) {
+      heartRateInterval.current = setInterval(() => {
+        // 운동 중 심박수 시뮬레이션 (120-160 bpm)
+        const baseRate = 120;
+        const variation = Math.random() * 40;
+        setHeartRate(Math.round(baseRate + variation));
+      }, 2000);
+    } else {
+      if (heartRateInterval.current) {
+        clearInterval(heartRateInterval.current);
+      }
+      setHeartRate(0);
+    }
+
+    return () => {
+      if (heartRateInterval.current) {
+        clearInterval(heartRateInterval.current);
+      }
+    };
+  }, [isTracking]);
 
   // 시간 업데이트
   useEffect(() => {
@@ -156,12 +184,6 @@ export default function App() {
     }
 
     setDebugInfo(`🚶 감지됨: ${currentStepCount.current}걸음`);
-
-    console.log(
-      `🚶 걸음 감지! x: ${x.toFixed(2)}, y: ${y.toFixed(2)}, z: ${z.toFixed(
-        2
-      )}, Δt: ${(timeDiff / 1000).toFixed(2)}s`
-    );
   };
 
   const saveRecord = () => {
@@ -199,6 +221,7 @@ export default function App() {
           setTotalDistance(0);
           setCurrentTime("00:00");
           setCurrentSpeed(0);
+          setHeartRate(0);
           startTime.current = null;
           setDebugInfo("🔁 초기화 완료");
         },
@@ -225,99 +248,116 @@ export default function App() {
     );
   };
 
+  // 진행률 계산 (예: 목표 거리 5km 기준)
+  const targetDistance = 5; // 5km 목표
+  const progressPercentage = Math.min(
+    (totalDistance / 1000 / targetDistance) * 100,
+    100
+  );
+
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#1a1a1a" />
+      <StatusBar barStyle="light-content" backgroundColor="#0a0a0a" />
 
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton}>
           <Text style={styles.backButtonText}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Running</Text>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>러닝</Text>
+        </View>
         <TouchableOpacity
           style={styles.settingsButton}
           onPress={() => setShowSettings(true)}
         >
-          <Text style={styles.settingsButtonText}>설정</Text>
+          <Text style={styles.settingsButtonText}>⚙️</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Status Bar */}
-      <View style={styles.statusBar}>
-        <View style={styles.statusItem}>
-          <Text style={styles.statusLabel}>시간</Text>
-          <Text style={styles.statusValue}>{currentTime}</Text>
+      {/* Heart Rate Display */}
+      {userGender === "male" ? (
+        <View style={styles.heartRateContainer}>
+          <Text style={styles.heartRateUnit}>성별 :</Text>
+          <Text style={styles.heartRateValue}>
+            {userGender === "male" ? "남성" : "여성"}
+          </Text>
         </View>
-        <View style={styles.statusItem}>
-          <Text style={styles.statusLabel}>속도</Text>
-          <Text style={styles.statusValue}>{currentSpeed.toFixed(1)} km/h</Text>
+      ) : (
+        <View style={styles.heartRateContainer}>
+          <Text style={styles.heartRateUnit}>성별 설정을 해주세요</Text>
         </View>
+      )}
+
+      {/* Progress Bar */}
+      <View style={styles.progressContainer}>
+        <View style={styles.progressBar}>
+          <View
+            style={[styles.progressFill, { width: `${progressPercentage}%` }]}
+          />
+        </View>
+        <Text style={styles.progressText}>
+          {stepCount}
+          {(totalDistance / 1000).toFixed(1)} / {targetDistance}.0 km
+        </Text>
       </View>
 
       {/* Main Display */}
       <View style={styles.mainDisplay}>
-        <Text style={styles.timeDisplay}>{currentTime}</Text>
-        <Text style={styles.speedDisplay}>{currentSpeed.toFixed(1)} km/h</Text>
-        <Text style={styles.yearDisplay}>2024</Text>
-
-        <View style={styles.speedCircle}>
-          <Text style={styles.speedCircleText}>
-            {currentSpeed.toFixed(1)} km/h
-          </Text>
+        <View style={styles.stepDisplay}>
+          <Text style={styles.stepCount}>{stepCount}</Text>
+          <Text style={styles.stepText}>걸음 수</Text>
         </View>
 
-        <View style={styles.distanceContainer}>
-          <Text style={styles.distanceValue}>
-            {(totalDistance / 1000).toFixed(2)}
-          </Text>
-          <Text style={styles.distanceLabel}>Kilometers</Text>
-        </View>
-
-        <View style={styles.stepsContainer}>
-          <Text style={styles.stepsIcon}>👟</Text>
-          <Text style={styles.stepsValue}>+{stepCount}</Text>
+        <View style={styles.statsContainer}>
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>
+              {(totalDistance / 1000).toFixed(2)}
+            </Text>
+            <Text style={styles.statLabel}>거리 (km)</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{userStride ? userStride : 0}</Text>
+            <Text style={styles.statLabel}>보폭 (m)</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{currentTime}</Text>
+            <Text style={styles.statLabel}>시간</Text>
+          </View>
         </View>
       </View>
 
       {/* Control Panel */}
       <View style={styles.controlPanel}>
-        <TouchableOpacity style={styles.controlButton} onPress={saveRecord}>
-          <View style={styles.controlButtonInner}>
-            <Text style={styles.controlButtonText}>💾</Text>
-          </View>
+        <TouchableOpacity
+          style={styles.smallControlButton}
+          onPress={saveRecord}
+        >
+          <Text style={styles.smallControlButtonText}>💾</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.controlButton, styles.mainControlButton]}
+          style={[styles.mainControlButton, isTracking && styles.pauseButton]}
           onPress={isTracking ? stopTracking : startTracking}
         >
-          <View
-            style={[styles.controlButtonInner, styles.mainControlButtonInner]}
-          >
-            <Text style={styles.mainControlButtonText}>
-              {isTracking ? "⏸" : "▶️"}
-            </Text>
+          <View style={styles.mainControlButtonInner}>
+            {isTracking ? (
+              <View style={styles.pauseIcon}>
+                <View style={styles.pauseBar} />
+                <View style={styles.pauseBar} />
+              </View>
+            ) : (
+              <Text style={styles.playIcon}>▶️</Text>
+            )}
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.controlButton} onPress={resetData}>
-          <View style={styles.controlButtonInner}>
-            <Text style={styles.controlButtonText}>🔄</Text>
-          </View>
+        <TouchableOpacity style={styles.smallControlButton} onPress={resetData}>
+          <Text style={styles.smallControlButtonText}>🔄</Text>
         </TouchableOpacity>
       </View>
-
-      {/* Debug Info (Hidden in production) */}
-      {__DEV__ && (
-        <View style={styles.debugContainer}>
-          <Text style={styles.debugText}>
-            가속도: x:{accelerometerData.x.toFixed(2)} y:
-            {accelerometerData.y.toFixed(2)} z:{accelerometerData.z.toFixed(2)}
-          </Text>
-          <Text style={styles.debugText}>상태: {debugInfo}</Text>
-        </View>
-      )}
 
       {/* Settings Modal */}
       <Modal visible={showSettings} transparent animationType="slide">
@@ -368,7 +408,7 @@ export default function App() {
               onChangeText={setUserAge}
               keyboardType="numeric"
               placeholder="나이를 입력하세요"
-              placeholderTextColor="#999"
+              placeholderTextColor="#666"
             />
 
             <Text style={styles.inputLabel}>보폭 (미터)</Text>
@@ -378,7 +418,7 @@ export default function App() {
               onChangeText={setUserStride}
               keyboardType="numeric"
               placeholder="예: 0.7"
-              placeholderTextColor="#999"
+              placeholderTextColor="#666"
             />
 
             <View style={styles.modalButtons}>
@@ -405,7 +445,7 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: "#0a0a0a",
   },
   header: {
     flexDirection: "row",
@@ -425,167 +465,178 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 24,
   },
+  headerCenter: {
+    alignItems: "center",
+  },
   headerTitle: {
     color: "#fff",
     fontSize: 18,
     fontWeight: "600",
   },
-  settingsButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: "#333",
-    borderRadius: 15,
-  },
-  settingsButtonText: {
-    color: "#fff",
-    fontSize: 14,
-  },
-  statusBar: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    paddingHorizontal: 40,
-    marginBottom: 20,
-  },
-  statusItem: {
-    alignItems: "center",
-  },
-  statusLabel: {
+  headerSubtitle: {
     color: "#888",
     fontSize: 12,
-    marginBottom: 4,
+    marginTop: 2,
   },
-  statusValue: {
-    color: "#fff",
-    fontSize: 14,
+  settingsButton: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  settingsButtonText: {
+    fontSize: 20,
+  },
+  heartRateContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 30,
+    backgroundColor: "#1a1a1a",
+    marginHorizontal: 20,
+    paddingVertical: 15,
+    borderRadius: 15,
+  },
+  heartRateIcon: {
+    marginRight: 10,
+  },
+  heartRateIconText: {
+    fontSize: 20,
+  },
+  heartRateValue: {
+    color: "#00ff88",
+    fontWeight: "bold",
+    marginRight: 5,
+  },
+  heartRateUnit: {
+    color: "#00ff88",
+    fontSize: 16,
     fontWeight: "600",
+  },
+  progressContainer: {
+    marginHorizontal: 20,
+    marginBottom: 40,
+  },
+  progressBar: {
+    height: 6,
+    backgroundColor: "#333",
+    borderRadius: 3,
+    overflow: "hidden",
+    marginBottom: 10,
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: "#00ff88",
+    borderRadius: 3,
+  },
+  progressText: {
+    color: "#888",
+    fontSize: 14,
+    textAlign: "center",
   },
   mainDisplay: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 40,
+    paddingHorizontal: 20,
   },
-  timeDisplay: {
+  stepDisplay: {
+    fontWeight: "300",
+    marginBottom: 60,
+  },
+  stepCount: {
     color: "#fff",
-    fontSize: 32,
-    fontWeight: "bold",
-    marginBottom: 8,
+    fontSize: 72,
+    fontWeight: "300",
+    fontFamily: "monospace",
   },
-  speedDisplay: {
-    color: "#888",
-    fontSize: 16,
-    marginBottom: 20,
+  stepText: {
+    color: "#00ff88",
   },
-  yearDisplay: {
-    color: "#888",
-    fontSize: 16,
-    marginBottom: 30,
-  },
-  speedCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#4CAF50",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 40,
-  },
-  speedCircleText: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  distanceContainer: {
-    alignItems: "center",
-    marginBottom: 30,
-  },
-  distanceValue: {
-    color: "#fff",
-    fontSize: 48,
-    fontWeight: "bold",
-  },
-  distanceLabel: {
-    color: "#888",
-    fontSize: 16,
-    marginTop: 4,
-  },
-  stepsContainer: {
+  statsContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#333",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    width: "100%",
+    justifyContent: "space-around",
   },
-  stepsIcon: {
-    fontSize: 16,
-    marginRight: 8,
+  statItem: {
+    alignItems: "center",
+    flex: 1,
   },
-  stepsValue: {
-    color: "#4CAF50",
-    fontSize: 16,
+  statValue: {
+    color: "#fff",
+    fontSize: 24,
     fontWeight: "600",
+    marginBottom: 5,
+  },
+  statLabel: {
+    color: "#888",
+    fontSize: 12,
+    textAlign: "center",
+  },
+  statDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: "#333",
   },
   controlPanel: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 40,
-    paddingBottom: 40,
-    backgroundColor: "#4ECDC4",
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
+    paddingBottom: 50,
     paddingTop: 30,
   },
-  controlButton: {
-    width: 60,
-    height: 60,
-    marginHorizontal: 20,
-  },
-  controlButtonInner: {
-    width: "100%",
-    height: "100%",
-    borderRadius: 30,
-    backgroundColor: "rgba(255,255,255,0.2)",
+  smallControlButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "#333",
     justifyContent: "center",
     alignItems: "center",
+    marginHorizontal: 30,
   },
-  controlButtonText: {
-    fontSize: 24,
+  smallControlButtonText: {
+    fontSize: 20,
   },
   mainControlButton: {
     width: 80,
     height: 80,
+    borderRadius: 40,
+    backgroundColor: "#00ff88",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  pauseButton: {
+    backgroundColor: "#ff4444",
   },
   mainControlButtonInner: {
-    borderRadius: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  playIcon: {
+    fontSize: 28,
+    color: "#000",
+    marginLeft: 3,
+  },
+  pauseIcon: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  pauseBar: {
+    width: 4,
+    height: 20,
     backgroundColor: "#fff",
-  },
-  mainControlButtonText: {
-    fontSize: 32,
-  },
-  debugContainer: {
-    position: "absolute",
-    bottom: 120,
-    left: 20,
-    right: 20,
-    backgroundColor: "rgba(0,0,0,0.7)",
-    padding: 10,
-    borderRadius: 8,
-  },
-  debugText: {
-    color: "#fff",
-    fontSize: 12,
-    marginBottom: 2,
+    marginHorizontal: 2,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.8)",
+    backgroundColor: "rgba(0,0,0,0.9)",
     justifyContent: "center",
     alignItems: "center",
   },
   modalContent: {
-    backgroundColor: "#2a2a2a",
+    backgroundColor: "#1a1a1a",
     margin: 20,
     padding: 30,
     borderRadius: 20,
@@ -614,21 +665,22 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 12,
-    backgroundColor: "#3a3a3a",
+    backgroundColor: "#333",
     alignItems: "center",
   },
   selectedGender: {
-    backgroundColor: "#4CAF50",
+    backgroundColor: "#00ff88",
   },
   genderButtonText: {
     color: "#fff",
     fontSize: 16,
   },
   selectedGenderText: {
+    color: "#000",
     fontWeight: "600",
   },
   input: {
-    backgroundColor: "#3a3a3a",
+    backgroundColor: "#333",
     color: "#fff",
     padding: 15,
     borderRadius: 12,
@@ -651,14 +703,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#666",
   },
   confirmButton: {
-    backgroundColor: "#4CAF50",
+    backgroundColor: "#00ff88",
   },
   cancelButtonText: {
     color: "#fff",
     fontSize: 16,
   },
   confirmButtonText: {
-    color: "#fff",
+    color: "#000",
     fontSize: 16,
     fontWeight: "600",
   },
