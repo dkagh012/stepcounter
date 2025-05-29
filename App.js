@@ -297,8 +297,8 @@ export default function App() {
           />
         </View>
         <Text style={styles.progressText}>
-          {stepCount}
-          {(totalDistance / 1000).toFixed(1)} / {targetDistance}.0 km
+          {(stepCount * parseFloat(userStride || 0)).toFixed(1)}m /{" "}
+          {targetDistance * 1000}m{(totalDistance / 1000).toFixed(1)} /{" "}
         </Text>
       </View>
 
